@@ -1,2 +1,7 @@
-com/example/SessionProcessor.class
-com/example/SessionProcessor$SessionState.class
+com/example/Main$1.class
+com/example/serializers/MultAVGsSerializer.class
+com/example/processors/LeqAverageProcessor.class
+com/example/config/KafkaConfig.class
+com/example/serializers/MultAVGsDeserializer.class
+com/example/models/MultAVGs.class
+com/example/Main.class
