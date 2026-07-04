@@ -1,6 +1,6 @@
-/home/yan/KafkaConsumer/src/main/java/com/example/config/KafkaConfig.java
-/home/yan/KafkaConsumer/src/main/java/com/example/Main.java
-/home/yan/KafkaConsumer/src/main/java/com/example/serializers/MultAVGsSerializer.java
-/home/yan/KafkaConsumer/src/main/java/com/example/processors/LeqAverageProcessor.java
-/home/yan/KafkaConsumer/src/main/java/com/example/models/MultAVGs.java
-/home/yan/KafkaConsumer/src/main/java/com/example/serializers/MultAVGsDeserializer.java
+/home/sueli/ConsumidorKafka/KafkaConsumer/src/main/java/com/example/Main.java
+/home/sueli/ConsumidorKafka/KafkaConsumer/src/main/java/com/example/serializers/MultAVGsSerializer.java
+/home/sueli/ConsumidorKafka/KafkaConsumer/src/main/java/com/example/serializers/MultAVGsDeserializer.java
+/home/sueli/ConsumidorKafka/KafkaConsumer/src/main/java/com/example/config/KafkaConfig.java
+/home/sueli/ConsumidorKafka/KafkaConsumer/src/main/java/com/example/processors/LeqAverageProcessor.java
+/home/sueli/ConsumidorKafka/KafkaConsumer/src/main/java/com/example/models/MultAVGs.java

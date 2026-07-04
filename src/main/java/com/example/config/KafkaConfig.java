@@ -6,9 +6,10 @@ import java.util.Properties;
 
 public class KafkaConfig {
     
-    private static final String BOOTSTRAP_SERVERS = "172.23.168.107:19092,172.23.168.107:29092,172.23.168.107:39092";
+    private static final String BOOTSTRAP_SERVERS = "172.27.240.1:19092,172.27.240.1:29092,172.27.240.1:39092";
     public static final String AUDIO_TOPIC = "audio-monitoring";
-    public static final String ALERTS_TOPIC = "audio-alerts";
+    public static final String LEQ_ALERT_TOPIC = "alert_leq";
+    public static final String HIGH_AND_LOWS_TOPIC = "alert_high_and_lows";
     
     public static Properties getStreamsProperties(String applicationId) {
         Properties props = new Properties();
