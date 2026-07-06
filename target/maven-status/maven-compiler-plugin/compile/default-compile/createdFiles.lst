@@ -1,7 +1,13 @@
 com/example/Main$1.class
+com/example/models/LeqData.class
+com/example/serializers/MultAVGsDeserializer.class
+com/example/models/MultAVGs.class
+com/example/serializers/LeqDataDeserializer.class
+com/example/serializers/LeqDataSerializer.class
+com/example/serializers/HighAndLowsDataDeserializer.class
 com/example/serializers/MultAVGsSerializer.class
+com/example/serializers/HighAndLowsDataSerializer.class
 com/example/processors/LeqAverageProcessor.class
 com/example/config/KafkaConfig.class
-com/example/serializers/MultAVGsDeserializer.class
 com/example/Main.class
-com/example/models/MultAVGs.class
+com/example/models/HighAndLowsData.class
