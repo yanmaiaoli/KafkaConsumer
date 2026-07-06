@@ -1,6 +1,10 @@
 package com.example.processors;
 
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
@@ -8,6 +12,9 @@ import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.state.KeyValueStore;
+
+import com.example.models.HighAndLowsData;
+import com.example.models.LeqData;
 import com.example.models.MultAVGs;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -19,6 +26,17 @@ import com.example.serializers.MultAVGsSerializer;
 
 public class LeqAverageProcessor {
     private static final Gson gson = new Gson();
+    private static KafkaProducer<String, String> producer;
+
+    static {
+        Properties producerProps = new Properties();
+        producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KafkaConfig.BOOTSTRAP_SERVERS);
+        producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        producerProps.put(ProducerConfig.ACKS_CONFIG, "1");
+        producerProps.put(ProducerConfig.RETRIES_CONFIG, 3);
+        producer = new KafkaProducer<>(producerProps);
+    }
     
     public static Topology buildTopology() {
         StreamsBuilder builder = new StreamsBuilder();
@@ -44,52 +62,50 @@ public class LeqAverageProcessor {
                         
                         double leq = audioEvent.get("lpi").getAsDouble();
                         String time = audioEvent.get("timestamp").getAsString();
+
+                        String sessionId = key;
+                        String location = json.has("location") ? json.get("location").getAsString() : "unknown";
+                        String classroom = json.has("classroom") ? json.get("classroom").getAsString() : "unknown";
                         
                         avgs.addValue(leq);
+                        // ENVIO 1: Enviar LeqData
+                        LeqData leqData = new LeqData(sessionId, time, location, classroom, leq);
+                        sendToTopic(KafkaConfig.LEQ_TOPIC, sessionId, gson.toJson(leqData));
                         
-                        // Processar L10
+                        // Processar L10 E L90 em um mesmo try/catch pois eles chegam alterados no mesmo evento
                         try {
-                            if (audioEvent.has("l10") && audioEvent.get("l10").isJsonPrimitive()) {
+                            if ((audioEvent.has("l10") && audioEvent.get("l10").isJsonPrimitive() && audioEvent.has("l90") && audioEvent.get("l90").isJsonPrimitive())) {
                                 double l10 = audioEvent.get("l10").getAsDouble();
-                                if (l10 > 0 && !Double.isNaN(l10) && !Double.isInfinite(l10)) {
-                                    avgs.addValuel10(l10);
-                                }
-                            }
-                        } catch (Exception e) {
-                            System.err.println("Error processing L10: " + e.getMessage());
-                        }
-                        
-                        // Processar L90
-                        try {
-                            if (audioEvent.has("l90") && audioEvent.get("l90").isJsonPrimitive()) {
                                 double l90 = audioEvent.get("l90").getAsDouble();
-                                if (l90 > 0 && !Double.isNaN(l90) && !Double.isInfinite(l90)) {
+                                if (l10 > 0 && l90 > 0 && !Double.isNaN(l10) && !Double.isNaN(l90) && !Double.isInfinite(l10) && !Double.isInfinite(l90)) {
+                                    avgs.addValuel10(l10);
                                     avgs.addValuel90(l90);
+                                    HighAndLowsData highAndLowsData = new HighAndLowsData(sessionId, time, location, classroom, l10, l90);
+                                    sendToTopic(KafkaConfig.HIGH_AND_LOWS_TOPIC, sessionId, gson.toJson(highAndLowsData));
+                                    //logs
+                                    System.out.printf("%s | SESSION %s | Leq avg: %.2f dB (based on %d samples) | L10: %.2f dB | L90: %.2f dB%n", 
+                                        time, 
+                                        key.substring(0, Math.min(8, key.length())),
+                                        avgs.getAverage(),
+                                        avgs.getCount(),
+                                        avgs.getAveragel10(),
+                                        avgs.getAveragel90()
+                                    );
+                                }else{
+                                    //logs
+                                    System.out.printf("%s | SESSION %s | Leq avg: %.2f dB (based on %d samples)%n", 
+                                        time, 
+                                        key.substring(0, Math.min(8, key.length())),
+                                        avgs.getAverage(),
+                                        avgs.getCount()
+                                    );
                                 }
                             }
                         } catch (Exception e) {
-                            System.err.println("Error processing L90: " + e.getMessage());
+                            System.err.println("Error processing L10 and L90: " + e.getMessage());
                         }
-                        
-                        // Log
-                        if (avgs.hasL10Values() && avgs.hasL90Values()) {
-                            System.out.printf("%s | SESSION %s | Leq avg: %.2f dB (based on %d samples) | L10: %.2f dB | L90: %.2f dB%n", 
-                                time, 
-                                key.substring(0, Math.min(8, key.length())),
-                                avgs.getAverage(),
-                                avgs.getCount(),
-                                avgs.getAveragel10(),
-                                avgs.getAveragel90()
-                            );
-                        } else {
-                            System.out.printf("%s | SESSION %s | Leq avg: %.2f dB (based on %d samples)%n", 
-                                time, 
-                                key.substring(0, Math.min(8, key.length())),
-                                avgs.getAverage(),
-                                avgs.getCount()
-                            );
-                        }
-                        
+
+
                     } catch (Exception e) {
                         System.err.println("Error processing message: " + e.getMessage());
                         e.printStackTrace();
@@ -102,5 +118,24 @@ public class LeqAverageProcessor {
             );
         
         return builder.build();
+    }
+
+        private static void sendToTopic(String topic, String key, String value) {
+        try {
+            ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, value);
+            producer.send(record, (metadata, exception) -> {
+                if (exception != null) {
+                    System.err.println("Error sending to " + topic + ": " + exception.getMessage());
+                } else {
+                    System.out.printf("📤 Enviado para %s: key=%s, value=%s%n", 
+                        topic, 
+                        key.substring(0, Math.min(8, key.length())), 
+                        value.substring(0, Math.min(50, value.length()))
+                    );
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("Error sending to topic: " + e.getMessage());
+        }
     }
 }

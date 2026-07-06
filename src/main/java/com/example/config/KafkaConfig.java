@@ -6,10 +6,13 @@ import java.util.Properties;
 
 public class KafkaConfig {
     
-    private static final String BOOTSTRAP_SERVERS = "172.27.240.1:19092,172.27.240.1:29092,172.27.240.1:39092";
+    public static final String BOOTSTRAP_SERVERS = "172.27.240.1:19092,172.27.240.1:29092,172.27.240.1:39092";
     public static final String AUDIO_TOPIC = "audio-monitoring";
-    public static final String LEQ_ALERT_TOPIC = "alert_leq";
-    public static final String HIGH_AND_LOWS_TOPIC = "alert_high_and_lows";
+    public static final String LEQ_TOPIC = "data_leq";
+    public static final String HIGH_AND_LOWS_TOPIC = "data_high_and_lows";
+    
+    // Tópico de saída (alertas processados)
+    public static final String ALERTS_TOPIC = "alerts";
     
     public static Properties getStreamsProperties(String applicationId) {
         Properties props = new Properties();
@@ -18,7 +21,7 @@ public class KafkaConfig {
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000);
-        props.put("auto.offset.reset", "latest");
+        props.put("auto.offset.reset", "earliest");
         return props;
     }
 }
