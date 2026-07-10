@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Monitoramento — Painel</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; display: flex; height: 100vh; background: #0f1115; color: #e6e6e6; }
+  #sidebar { width: 320px; overflow-y: auto; border-right: 1px solid #2a2d34; }
+  #sidebar h2 { padding: 16px; margin: 0; font-size: 16px; border-bottom: 1px solid #2a2d34; }
+  .session-item { padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #1e2126; }
+  .session-item:hover { background: #1a1d23; }
+  .session-item.active { background: #232733; border-left: 3px solid #4f8cff; }
+  .session-item .id { font-size: 12px; color: #8a8f98; }
+  .session-item .loc { font-size: 13px; margin-top: 4px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 6px; }
+  .badge.stress { background: #ff4f4f33; color: #ff8080; }
+  #main { flex: 1; overflow-y: auto; padding: 24px; }
+  .card { background: #1a1d23; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .metric-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .metric { background: #232733; border-radius: 6px; padding: 12px 16px; min-width: 120px; }
+  .metric .label { font-size: 12px; color: #8a8f98; }
+  .metric .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+  .alert-item { padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; background: #1a1d23; border-left: 3px solid #666; }
+  .alert-item.CRITICAL { border-left-color: #ff4f4f; }
+  .alert-item.HIGH { border-left-color: #ff9f4f; }
+  .alert-item.MEDIUM { border-left-color: #ffe14f; }
+  .alert-item.STRESS { border-left-color: #ff4fd4; background: #2a1a26; }
+  .alert-time { font-size: 11px; color: #8a8f98; }
+  .empty { color: #8a8f98; padding: 40px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>Monitoramentos</h2>
+  <div id="session-list"></div>
+</div>
+
+<div id="main">
+  <div class="empty">Selecione um monitoramento à esquerda</div>
+</div>
+
+<script>
+const POLL_INTERVAL_MS = 3000;
+let selectedSessionId = null;
+
+async function fetchSessions() {
+  const res = await fetch('/api/sessions');
+  return res.json();
+}
+
+async function fetchSessionDetail(sessionId) {
+  const res = await fetch('/api/sessions/' + encodeURIComponent(sessionId));
+  return res.json();
+}
+
+function renderSessionList(sessions) {
+  const list = document.getElementById('session-list');
+  list.innerHTML = '';
+  sessions
+    .sort((a, b) => b.alertCount - a.alertCount)
+    .forEach(s => {
+      const div = document.createElement('div');
+      div.className = 'session-item' + (s.sessionId === selectedSessionId ? ' active' : '');
+      div.onclick = () => selectSession(s.sessionId);
+      div.innerHTML = `
+        <div class="id">${s.sessionId.substring(0, 8)}</div>
+        <div class="loc">${s.location} · ${s.classroom}
+          ${s.stressDetectedCount > 0 ? `<span class="badge stress">${s.stressDetectedCount} estresse</span>` : ''}
+        </div>
+      `;
+      list.appendChild(div);
+    });
+}
+
+function alertCssClass(alert) {
+  if (alert.type === 'STRESS_DETECTED') return 'STRESS';
+  return alert.severity || '';
+}
+
+// Timestamp do alerta pode vir como epoch millis ("1783629435263") ou
+// já formatado ("17:36:09.057"), dependendo do processador de origem.
+function formatAlertTimestamp(raw) {
+  const asNumber = Number(raw);
+  if (!isNaN(asNumber) && raw.length >= 12) {
+    return new Date(asNumber).toLocaleTimeString('pt-BR');
+  }
+  return raw; // já é uma hora formatada
+}
+
+function renderAverages(averages) {
+  if (!averages || averages.count === undefined || averages.count === 0) {
+    return '<p style="color:#8a8f98">Nenhuma média disponível ainda para esta sessão.</p>';
+  }
+
+  const avg = averages.count > 0 ? averages.sum / averages.count : 0;
+  const avgL10 = averages.hasL10 && averages.countl10 > 0 ? averages.suml10 / averages.countl10 : null;
+  const avgL90 = averages.hasL90 && averages.countl90 > 0 ? averages.suml90 / averages.countl90 : null;
+
+  const metrics = [
+    { label: 'Leq médio (dB)', value: avg.toFixed(2) },
+    { label: 'Amostras', value: averages.count }
+  ];
+  if (avgL10 !== null) metrics.push({ label: 'L10 médio (dB)', value: avgL10.toFixed(2) });
+  if (avgL90 !== null) metrics.push({ label: 'L90 médio (dB)', value: avgL90.toFixed(2) });
+
+  return `<div class="metric-row">
+    ${metrics.map(m => `
+      <div class="metric">
+        <div class="label">${m.label}</div>
+        <div class="value">${m.value}</div>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+function renderDetail(data) {
+  const main = document.getElementById('main');
+  const { summary, alerts, averages } = data;
+
+  const metricsHtml = renderAverages(averages);
+
+  const alertsHtml = alerts.length > 0
+    ? alerts.map(a => `
+        <div class="alert-item ${alertCssClass(a)}">
+          <div class="alert-time">${formatAlertTimestamp(a.timestamp)} · ${a.type}</div>
+          <div>${a.message}</div>
+        </div>
+      `).join('')
+    : '<p style="color:#8a8f98">Nenhum alerta registrado.</p>';
+
+  main.innerHTML = `
+    <div class="card">
+      <h3>${summary.sessionId}</h3>
+      <p>${summary.location || ''} · ${summary.classroom || ''}</p>
+      ${metricsHtml}
+    </div>
+    <div class="card">
+      <h3>Alertas (${alerts.length})</h3>
+      ${alertsHtml}
+    </div>
+  `;
+}
+
+async function selectSession(sessionId) {
+  selectedSessionId = sessionId;
+  const data = await fetchSessionDetail(sessionId);
+  renderDetail(data);
+  const sessions = await fetchSessions();
+  renderSessionList(sessions);
+}
+
+async function pollLoop() {
+  try {
+    const sessions = await fetchSessions();
+    renderSessionList(sessions);
+    if (selectedSessionId) {
+      const data = await fetchSessionDetail(selectedSessionId);
+      renderDetail(data);
+    }
+  } catch (e) {
+    console.error('Erro no polling:', e);
+  }
+  setTimeout(pollLoop, POLL_INTERVAL_MS);
+}
+
+pollLoop();
+</script>
+</body>
+</html>

@@ -13,7 +13,8 @@ public class Alert {
         CRITICAL_INTELLIGIBILITY,
         HIGH_PEAK,
         HIGH_BACKGROUND_NOISE,
-        HIGH_INTRUSION
+        HIGH_INTRUSION,
+        STRESS_DETECTED
     }
     
     public enum Severity {

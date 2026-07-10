@@ -61,11 +61,23 @@ public class LeqAverageProcessor {
                         JsonObject audioEvent = json.getAsJsonObject("audioEvent");
                         
                         double leq = audioEvent.get("lpi").getAsDouble();
-                        String time = audioEvent.get("timestamp").getAsString();
+                        String time = json.has("timestamp") && json.get("timestamp").isJsonPrimitive()
+                        ? json.get("timestamp").getAsString()
+                        : String.valueOf(System.currentTimeMillis());
 
                         String sessionId = key;
-                        String location = json.has("location") ? json.get("location").getAsString() : "unknown";
-                        String classroom = json.has("classroom") ? json.get("classroom").getAsString() : "unknown";
+                        String location = "unknown";
+                        String classroom = "unknown";
+
+                        if (json.has("metadata") && json.getAsJsonObject("metadata").has("spot")) {
+                            JsonObject spot = json.getAsJsonObject("metadata").getAsJsonObject("spot");
+                            if (spot.has("location") && spot.get("location").isJsonPrimitive()) {
+                                location = spot.get("location").getAsString();
+                            }
+                            if (spot.has("classroom") && spot.get("classroom").isJsonPrimitive()) {
+                                classroom = spot.get("classroom").getAsString();
+                            }
+                        }
                         
                         avgs.addValue(leq);
                         // ENVIO 1: Enviar LeqData
@@ -90,14 +102,6 @@ public class LeqAverageProcessor {
                                         avgs.getCount(),
                                         avgs.getAveragel10(),
                                         avgs.getAveragel90()
-                                    );
-                                }else{
-                                    //logs
-                                    System.out.printf("%s | SESSION %s | Leq avg: %.2f dB (based on %d samples)%n", 
-                                        time, 
-                                        key.substring(0, Math.min(8, key.length())),
-                                        avgs.getAverage(),
-                                        avgs.getCount()
                                     );
                                 }
                             }
@@ -127,11 +131,11 @@ public class LeqAverageProcessor {
                 if (exception != null) {
                     System.err.println("Error sending to " + topic + ": " + exception.getMessage());
                 } else {
-                    System.out.printf("📤 Enviado para %s: key=%s, value=%s%n", 
+                    /*System.out.printf("📤 Enviado para %s: key=%s, value=%s%n", 
                         topic, 
                         key.substring(0, Math.min(8, key.length())), 
                         value.substring(0, Math.min(50, value.length()))
-                    );
+                    );*/
                 }
             });
         } catch (Exception e) {
